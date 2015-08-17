@@ -78,7 +78,7 @@ if [[ -e /etc/openvpn/server.conf ]]; then
 		echo "   4) Exit"
 		read -p "Select an option [1-4]: " option
 		case $option in
-			1) 
+			1)
 			echo ""
 			echo "Tell me a name for the client cert"
 			echo "Please, use one word only, no special characters"
@@ -134,7 +134,7 @@ if [[ -e /etc/openvpn/server.conf ]]; then
 			echo "Certificate for client $CLIENT revoked"
 			exit
 			;;
-			3) 
+			3)
 			echo ""
 			read -p "Do you really want to remove OpenVPN? [y/n]: " -e -i n REMOVE
 			if [[ "$REMOVE" = 'y' ]]; then
@@ -145,8 +145,20 @@ if [[ -e /etc/openvpn/server.conf ]]; then
 				fi
 				rm -rf /etc/openvpn
 				rm -rf /usr/share/doc/openvpn*
-				sed -i '/--dport 53 -j REDIRECT --to-port/d' $RCLOCAL
-				sed -i '/iptables -t nat -A POSTROUTING -s 10.8.0.0/d' $RCLOCAL
+###remove entries via --comment tag // bcause individual udp port
+				sed -i '/--comment -openvpn-install-/d'  $RCLOCAL
+###remove net.ipv4.ip_forward // reverse script:
+					# # Enable net.ipv4.ip_forward for the system
+					# if [[ "$OS" = 'debian' ]]; then
+					# 	sed -i 's|#net.ipv4.ip_forward=1|net.ipv4.ip_forward=1|' /etc/sysctl.conf
+					# else
+					# 	# CentOS 5 and 6
+					# 	sed -i 's|net.ipv4.ip_forward = 0|net.ipv4.ip_forward = 1|' /etc/sysctl.conf
+					# 	# CentOS 7
+					# 	if ! grep -q "net.ipv4.ip_forward=1" "/etc/sysctl.conf"; then
+					# 		echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf
+					# 	fi
+					# fi
 				echo ""
 				echo "OpenVPN removed!"
 			else
@@ -170,12 +182,12 @@ else
 	echo "listening to."
 	read -p "IP address: " -e -i $IP IP
 	echo ""
-	echo "What port do you want for OpenVPN?"
-	read -p "Port: " -e -i 1194 PORT
+	echo "What TCP port do you want for OpenVPN?"
+	read -p "Listen at port (TCP) 1194 [PORT]:  " -e -i 1194 PORT
 	echo ""
-	echo "Do you want OpenVPN to be available at port 53 too?"
+	echo "Do you want OpenVPN to be available at UDP port 53 too?"
 	echo "This can be useful to connect under restrictive networks"
-	read -p "Listen at port 53 [y/n]: " -e -i n ALTPORT
+	read -p "Listen at port (UDP) 53 [PORT/n]: " -e -i n ALTPORT
 	echo ""
 	echo "Do you want to enable internal networking for the VPN?"
 	echo "This can allow VPN clients to communicate between them"
@@ -250,7 +262,7 @@ else
 	sed -i "s|port 1194|port $PORT|" server.conf
 	# DNS
 	case $DNS in
-		1) 
+		1)
 		# Obtain the resolvers from resolv.conf and use them for OpenVPN
 		grep -v '#' /etc/resolv.conf | grep 'nameserver' | grep -E -o '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | while read line; do
 			sed -i "/;push \"dhcp-option DNS 208.67.220.220\"/a\push \"dhcp-option DNS $line\"" server.conf
@@ -260,26 +272,26 @@ else
 		sed -i 's|;push "dhcp-option DNS 208.67.222.222"|push "dhcp-option DNS 208.67.222.222"|' server.conf
 		sed -i 's|;push "dhcp-option DNS 208.67.220.220"|push "dhcp-option DNS 208.67.220.220"|' server.conf
 		;;
-		3) 
+		3)
 		sed -i 's|;push "dhcp-option DNS 208.67.222.222"|push "dhcp-option DNS 4.2.2.2"|' server.conf
 		sed -i 's|;push "dhcp-option DNS 208.67.220.220"|push "dhcp-option DNS 4.2.2.4"|' server.conf
 		;;
-		4) 
+		4)
 		sed -i 's|;push "dhcp-option DNS 208.67.222.222"|push "dhcp-option DNS 129.250.35.250"|' server.conf
 		sed -i 's|;push "dhcp-option DNS 208.67.220.220"|push "dhcp-option DNS 129.250.35.251"|' server.conf
 		;;
-		5) 
+		5)
 		sed -i 's|;push "dhcp-option DNS 208.67.222.222"|push "dhcp-option DNS 74.82.42.42"|' server.conf
 		;;
-		6) 
+		6)
 		sed -i 's|;push "dhcp-option DNS 208.67.222.222"|push "dhcp-option DNS 8.8.8.8"|' server.conf
 		sed -i 's|;push "dhcp-option DNS 208.67.220.220"|push "dhcp-option DNS 8.8.4.4"|' server.conf
 		;;
 	esac
 	# Listen at port 53 too if user wants that
-	if [[ "$ALTPORT" = 'y' ]]; then
-		iptables -t nat -A PREROUTING -p udp -d $IP --dport 53 -j REDIRECT --to-port $PORT
-		sed -i "1 a\iptables -t nat -A PREROUTING -p udp -d $IP --dport 53 -j REDIRECT --to-port $PORT" $RCLOCAL
+	if [[ "$ALTPORT" != 'n' ]]; then
+		iptables -t nat -A PREROUTING -p udp -d $IP --dport $ALTPORT -j REDIRECT --to-port $PORT
+		sed -i "1 a\iptables -t nat -A PREROUTING -p udp -d $IP --dport $ALTPORT -j REDIRECT --to-port $PORT -m --comment '-openvpn-install- '" $RCLOCAL
 	fi
 	# Enable net.ipv4.ip_forward for the system
 	if [[ "$OS" = 'debian' ]]; then
@@ -297,10 +309,10 @@ else
 	# Set iptables
 	if [[ "$INTERNALNETWORK" = 'y' ]]; then
 		iptables -t nat -A POSTROUTING -s 10.8.0.0/24 ! -d 10.8.0.0/24 -j SNAT --to $IP
-		sed -i "1 a\iptables -t nat -A POSTROUTING -s 10.8.0.0/24 ! -d 10.8.0.0/24 -j SNAT --to $IP" $RCLOCAL
+		sed -i "1 a\iptables -t nat -A POSTROUTING -s 10.8.0.0/24 ! -d 10.8.0.0/24 -j SNAT --to $IP -m --comment '-openvpn-install- '" $RCLOCAL
 	else
 		iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -j SNAT --to $IP
-		sed -i "1 a\iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -j SNAT --to $IP" $RCLOCAL
+		sed -i "1 a\iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -j SNAT --to $IP -m --comment '-openvpn-install- '" $RCLOCAL
 	fi
 	# And finally, restart OpenVPN
 	if [[ "$OS" = 'debian' ]]; then
