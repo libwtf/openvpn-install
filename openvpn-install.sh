@@ -7,6 +7,9 @@
 # your Debian/Ubuntu/CentOS box. It has been designed to be as unobtrusive and
 # universal as possible.
 
+#base	https://github.com/Nyr/openvpn-install
+#mess	https://github.com/libwtf/openvpn-install
+
 
 if [[ "$USER" != 'root' ]]; then
 	echo "Sorry, you need to run this as root"
