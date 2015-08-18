@@ -150,18 +150,18 @@ if [[ -e /etc/openvpn/server.conf ]]; then
 				rm -rf /usr/share/doc/openvpn*
 ###remove entries via --comment tag // bcause individual udp port
 				sed -i '/--comment -openvpn-install-/d'  $RCLOCAL
-###remove net.ipv4.ip_forward // reverse script:
-					# # Enable net.ipv4.ip_forward for the system
-					# if [[ "$OS" = 'debian' ]]; then
-					# 	sed -i 's|#net.ipv4.ip_forward=1|net.ipv4.ip_forward=1|' /etc/sysctl.conf
-					# else
-					# 	# CentOS 5 and 6
-					# 	sed -i 's|net.ipv4.ip_forward = 0|net.ipv4.ip_forward = 1|' /etc/sysctl.conf
-					# 	# CentOS 7
-					# 	if ! grep -q "net.ipv4.ip_forward=1" "/etc/sysctl.conf"; then
-					# 		echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf
-					# 	fi
-					# fi
+###remove net.ipv4.ip_forward
+					# Disable net.ipv4.ip_forward for the system
+					if [[ "$OS" = 'debian' ]]; then
+						sed -i 's|net.ipv4.ip_forward=1|#net.ipv4.ip_forward=1|' /etc/sysctl.conf
+					else
+						# CentOS 5 and 6
+						sed -i 's|net.ipv4.ip_forward = 1|net.ipv4.ip_forward = 0|' /etc/sysctl.conf
+						# CentOS 7
+						if grep -q "net.ipv4.ip_forward=1" "/etc/sysctl.conf"; then
+								sed -i '/net.ipv4.ip_forward=1/d'  /etc/sysctl.conf
+						fi
+					fi
 				echo ""
 				echo "OpenVPN removed!"
 			else
@@ -295,9 +295,9 @@ else
 		read -p "Custom DNS server #1: " -e -i 10.8.0.61 CUSTOMDNS1
 		read -p "Custom DNS server #2 [empty for none]: " -e -i 10.8.0.67 CUSTOMDNS2
 		sed -i 's|;push "dhcp-option DNS 208.67.222.222"|push "dhcp-option DNS $CUSTOMDNS1"|' server.conf
-		if [[ "$CUSTOMDNS2" != '' ]]; then
-			sed -i 's|;push "dhcp-option DNS 208.67.220.220"|push "dhcp-option DNS $CUSTOMDNS2"|' server.conf
-		fi
+			if [[ "$CUSTOMDNS2" != '' ]]; then
+				sed -i 's|;push "dhcp-option DNS 208.67.220.220"|push "dhcp-option DNS $CUSTOMDNS2"|' server.conf
+			fi
 		;;
 	esac
 	# Listen at port 53 too if user wants that
